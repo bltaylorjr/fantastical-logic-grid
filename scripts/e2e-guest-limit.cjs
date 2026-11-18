@@ -1,6 +1,7 @@
 // Guest puzzles (web/js/guest-limit.js): with accounts on, a guest can start 3
-// new puzzles a day across every game; the next one asks them to sign in or
-// create a free account. Saved puzzles stay free, and a new day starts fresh.
+// new puzzles a week (Monday to Sunday) across every game; the next one asks
+// them to sign in or create a free account. Saved puzzles stay free, and a new
+// week starts fresh.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -19,11 +20,10 @@ const PORT = 8193;
   await ctx.addInitScript(() => { if (!sessionStorage.getItem('init')) { sessionStorage.setItem('init', '1'); localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, sound: false })); } });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
-  const setUsed = (n, day) => page.evaluate(([n, day]) => {
-    const d = new Date();
-    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    localStorage.setItem('flg.guestPlays', JSON.stringify({ day: day || today, n }));
-  }, [n, day]);
+  const setUsed = (n, week) => page.evaluate(async ([n, week]) => {
+    const { thisWeek } = await import('./js/guest-limit.js');
+    localStorage.setItem('flg.guestPlays', JSON.stringify({ week: week || thisWeek(), n }));
+  }, [n, week]);
   const used = () => page.evaluate(() => JSON.parse(localStorage.getItem('flg.guestPlays') || '{"n":0}').n);
   const toHome = async () => {
     if (await page.locator('#screen-games:not([hidden])').count()) await page.click('#game-cards [data-game=logic-grid]');
@@ -33,7 +33,12 @@ const PORT = 8193;
     await page.goto(`http://localhost:${PORT}/`);
     await toHome();
     await page.evaluate(() => document.querySelectorAll('dialog[open]').forEach((d) => d.close()));
-    assert(/3 of 3 new puzzles left today/.test(await page.textContent('#guest-note')) && await page.isVisible('#guest-note'), 'a guest sees 3 of 3 new puzzles left today');
+    const weeks = await page.evaluate(async () => {
+      const { thisWeek } = await import('./js/guest-limit.js');
+      return [new Date(2026, 10, 16, 0, 5), new Date(2026, 10, 18, 22), new Date(2026, 10, 22, 23, 59), new Date(2026, 10, 23, 0, 1), new Date(2027, 0, 1)].map((d) => thisWeek(d));
+    });
+    assert(weeks.join() === '2026-11-16,2026-11-16,2026-11-16,2026-11-23,2026-12-28', `weeks run Monday to Sunday (${weeks.join()})`);
+    assert(/3 of 3 new puzzles left this week/.test(await page.textContent('#guest-note')) && await page.isVisible('#guest-note'), 'a guest sees 3 of 3 new puzzles left this week');
 
     await page.click('#quick-btn');
     await page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
@@ -46,11 +51,12 @@ const PORT = 8193;
     await setUsed(3);
     await page.reload();
     await toHome();
-    assert(/played today's 3 guest puzzles/.test(await page.textContent('#guest-note')), 'the home screen says today\'s guest puzzles are used');
+    assert(/played this week's 3 guest puzzles/.test(await page.textContent('#guest-note')), 'the home screen says this week\'s guest puzzles are used');
     const saves0 = await page.evaluate(async () => (await (await import('./js/store.js')).listSaves()).length);
     await page.click('#quick-btn');
     await page.waitForSelector('#dlg-confirm[open]');
     assert(/free account/i.test(await page.textContent('#confirm-h')), 'the 4th puzzle asks the guest to create a free account');
+    assert(/3 new puzzles a week/.test(await page.textContent('#dlg-confirm')), 'the ask says guests get 3 new puzzles a week');
     await page.click('#confirm-no');
     await page.waitForTimeout(300);
     const saves1 = await page.evaluate(async () => (await (await import('./js/store.js')).listSaves()).length);
@@ -75,7 +81,7 @@ const PORT = 8193;
     await page.waitForSelector('#screen-games:not([hidden])');
     await page.click('#game-cards [data-game=ninetimesnine]');
     await page.waitForSelector('#screen-np:not([hidden]) #np-gen');
-    assert(/played today's 3/.test(await page.textContent('#np-guest')), 'NINETIMESNINE shows the guest line');
+    assert(/played this week's 3/.test(await page.textContent('#np-guest')), 'NINETIMESNINE shows the guest line');
     await page.click('#np-gen');
     await page.waitForSelector('#dlg-confirm[open]');
     assert(true, 'NINETIMESNINE asks for an account after the shared 3');
@@ -89,11 +95,11 @@ const PORT = 8193;
     assert(true, 'Cage Math asks for an account after the shared 3');
     await page.click('#confirm-no');
 
-    // A new day starts fresh, and the count is shared: a Cage Math puzzle uses one.
-    await setUsed(3, '2000-01-01');
+    // A new week starts fresh, and the count is shared: a Cage Math puzzle uses one.
+    await setUsed(3, '2000-01-03');
     await page.click('#cm-gen');
     await page.waitForFunction(() => JSON.parse(localStorage.getItem('flg.guestPlays') || '{"n":0}').n === 1, null, { timeout: 30000 });
-    assert(true, 'a new day gives 3 new guest puzzles again, shared with every game');
+    assert(true, 'a new week gives 3 new guest puzzles again, shared with every game');
 
     // With the game server reached, it keeps the count: clearing the browser
     // gives a new device id, but the connection's limit still holds.

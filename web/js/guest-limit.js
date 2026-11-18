@@ -1,9 +1,11 @@
-// Guest puzzles: a guest (not signed in) gets a few new puzzles a day across
+// Guest puzzles: a guest (not signed in) gets a few new puzzles a week across
 // every game of The Logic Grid, one shared count; after that, starting a new
-// one asks them to sign in or create a free account.
+// one asks them to sign in or create a free account. Signed-in players have no limit.
 //
 // Bobby: "require an account after a set amount of guest plays per day to view
-// and play more puzzles". 3 a day, all games, one count. Always free: finishing
+// and play more puzzles" (3 a day), then on 2026-11-18: "limit games to three
+// games per week without a login". 3 a week (Monday to Sunday, the player's
+// own time), all games, one count. Always free: finishing
 // saved puzzles, the daily puzzle (and the weekly and special edition puzzles
 // from the emails), and How to play. Only new free-play puzzles and races
 // against the computer count (races against players need an account already).
@@ -11,11 +13,11 @@
 // The game server counts them (server/src/guest-plays.js), per device and per
 // internet connection, so clearing the browser does not give a guest more.
 // When the server can't be reached (offline, or the desktop app with no
-// connection) the count kept on this device by local day is used instead.
+// connection) the count kept on this device by local week is used instead.
 // With accounts switched off (a build with no cloud settings, or a game
 // portal) there is no limit, since there would be no way to sign in. The
 // dashboard sets the number (Player sign-in > New puzzles a guest can start
-// each day; 0 turns the limit off).
+// each week; 0 turns the limit off).
 import * as account from './account.js';
 import * as remote from './remote-config.js';
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
@@ -32,26 +34,27 @@ export function init(h) {
   refresh();
 }
 
-const today = () => {
-  const d = new Date();
+// This week's Monday on the device's own calendar (YYYY-MM-DD), like the server's.
+export const thisWeek = (now = new Date()) => {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 const read = () => {
   try {
     const v = JSON.parse(localStorage.getItem(KEY));
-    if (v && v.day === today() && Number.isInteger(v.n) && v.n >= 0) return v.n;
+    if (v && v.week === thisWeek() && Number.isInteger(v.n) && v.n >= 0) return v.n;
   } catch (e) { /* blocked storage: treat as none played */ }
   return 0;
 };
-const write = (n) => { try { localStorage.setItem(KEY, JSON.stringify({ day: today(), n })); } catch (e) { /* storage blocked */ } };
+const write = (n) => { try { localStorage.setItem(KEY, JSON.stringify({ week: thisWeek(), n })); } catch (e) { /* storage blocked */ } };
 
-// The server's last answer today: { day, left, limit }.
+// The server's last answer this week: { week, left, limit }.
 let server = null;
-const fresh = () => (server && server.day === today() ? server : null);
+const fresh = () => (server && server.week === thisWeek() ? server : null);
 
 export function limit() {
   if (fresh()) return fresh().limit;
-  const v = remote.guestDailyLimit();
+  const v = remote.guestWeeklyLimit();
   return Number.isInteger(v) && v >= 0 ? v : DEFAULT_LIMIT;
 }
 // Whether the limit applies to this player right now.
@@ -85,14 +88,14 @@ async function ask(take) {
     if (!r.ok) return null;
     const v = await r.json();
     if (!v || typeof v.ok !== 'boolean' || !Number.isInteger(v.limit)) return null;
-    server = { day: today(), limit: v.limit, left: v.limit ? Math.max(0, v.left | 0) : Infinity };
+    server = { week: thisWeek(), limit: v.limit, left: v.limit ? Math.max(0, v.left | 0) : Infinity };
     // Keep the device's own count in step, for when the server can't be reached.
     if (v.limit) write(Math.max(read(), v.limit - server.left));
     return v;
   } catch (e) { return null; }
 }
 
-// Today's count from the server, for the setup screens' line (guests only).
+// This week's count from the server, for the setup screens' line (guests only).
 export async function refresh() {
   if (!account.enabled() || hooks.signedIn()) return;
   if (await ask(false)) hooks.onChange?.();
@@ -102,7 +105,7 @@ export async function refresh() {
 let localTake = false;
 
 // Before a new puzzle: true to go ahead; false (after offering sign-in) when
-// today's guest puzzles are used up. Call started() once the puzzle opens.
+// this week's guest puzzles are used up. Call started() once the puzzle opens.
 export async function allowNew() {
   localTake = false;
   if (!applies()) return true;
@@ -117,7 +120,7 @@ export async function allowNew() {
   const n = limit();
   const go = await hooks.confirm({
     title: 'Create a free account to keep playing',
-    text: `Guests can start ${n} new puzzle${n === 1 ? '' : 's'} a day, and you've played today's. A free account gives you unlimited puzzles in every game, and keeps your progress on all your devices. Your saved puzzles, the daily puzzle and How to play are always free.`,
+    text: `Guests can start ${n} new puzzle${n === 1 ? '' : 's'} a week, and you've played this week's. More come on Monday. A free account gives you unlimited puzzles in every game, and keeps your progress on all your devices. Your saved puzzles, the daily puzzle and How to play are always free.`,
     yes: 'Sign in or create an account',
     no: 'Not now',
   });
@@ -135,6 +138,6 @@ export function note() {
   if (!applies()) return '';
   const l = left(), n = limit();
   return l > 0
-    ? `Guest: ${l} of ${n} new puzzle${n === 1 ? '' : 's'} left today. A free account gives you unlimited puzzles.`
-    : `You've played today's ${n} guest puzzle${n === 1 ? '' : 's'}. Sign in or create a free account for more.`;
+    ? `Guest: ${l} of ${n} new puzzle${n === 1 ? '' : 's'} left this week. A free account gives you unlimited puzzles.`
+    : `You've played this week's ${n} guest puzzle${n === 1 ? '' : 's'}. More come on Monday, or sign in or create a free account for unlimited puzzles.`;
 }

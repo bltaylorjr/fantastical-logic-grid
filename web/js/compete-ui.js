@@ -152,7 +152,7 @@ function renderCard() {
   }
   $('#compete-intro').textContent = user && name
     ? 'Race on the very same puzzle: the fastest solve wins. Every solved puzzle also earns points on the scoreboard.'
-    : 'Race the computer any time, or sign in and choose a screen name to race other detectives on the very same puzzle and climb the scoreboard. Guests can play a few new puzzles a day without an account.';
+    : 'Race the computer any time, or sign in and choose a screen name to race other detectives on the very same puzzle and climb the scoreboard. Guests can play a few new puzzles a week without an account.';
   $('#compete-actions').innerHTML = actions;
   renderInvites();
 }
@@ -654,7 +654,7 @@ function wireComputer() {
   const form = $('.race-view[data-view=computer]', d);
   form.onsubmit = async (e) => {
     e.preventDefault();
-    // A guest's new puzzles for the day (guest-limit.js) include races against the computer.
+    // A guest's new puzzles for the week (guest-limit.js) include races against the computer.
     if (ui.allowNew && !(await ui.allowNew())) { d.close(); return; }
     const skill = $('input[name=cpu-skill]:checked', form)?.value || 'matched';
     ui.setSetting('computerSkill', skill);

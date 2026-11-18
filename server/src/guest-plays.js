@@ -1,18 +1,22 @@
 // Guest puzzles: how many new puzzles a guest (not signed in) may start each
-// day, counted here so clearing the browser does not reset it.
+// week, counted here so clearing the browser does not reset it.
+//
+// Bobby (2026-11-18): "limit games to three games per week without a login".
+// Before that it was 3 a day.
 //
 //   POST /v1/guest-play  { d: device id, take: true|false }
-//        take: false  how many are left today, nothing used
+//        take: false  how many are left this week, nothing used
 //        take: true   use one if any are left
-//        -> { ok, left, limit }   ok: false when today's are used up
+//        -> { ok, left, limit }   ok: false when this week's are used up
 //
-// Two counts, both by day in the connection's own time zone (from
-// Cloudflare), so the day turns over at the player's midnight:
-//   - the device (its random id, web/js/guest-limit.js): guest_daily_limit
-//   - the internet connection: guest_network_daily_limit, for all guests on it
+// Two counts, both by calendar week (Monday to Sunday) in the connection's own
+// time zone (from Cloudflare), so the week starts at the player's Monday midnight:
+//   - the device (its random id, web/js/guest-limit.js): guest_weekly_limit
+//   - the internet connection: guest_network_weekly_limit, for all guests on it
 //     together, so a fresh browser on the same connection gets no more than that
-// Only one-way hashes are stored (the address with a random salt made for each
-// day, kept in guest_salts), and rows and salts go after 3 days (upkeep.js). Signed-in players never call this.
+// The `day` column holds the week's Monday (YYYY-MM-DD). Only one-way hashes
+// are stored (the address with a random salt made for each week, kept in
+// guest_salts), and rows and salts go after 10 days (upkeep.js). Signed-in players never call this.
 // The device decides when to ask; the game builds puzzles on the device, so
 // this is a gate for honest browsers, not a lock on the engine.
 import { json, readText, TooLarge } from './http.js';
@@ -31,6 +35,14 @@ export function localDay(timeZone, now = Date.now()) {
   try { return fmt(timeZone || 'America/New_York'); } catch (e) { return fmt('America/New_York'); }
 }
 
+// The Monday (YYYY-MM-DD) that starts this week in a time zone, or US Eastern if it is unknown.
+export function localWeek(timeZone, now = Date.now()) {
+  const [y, m, d] = localDay(timeZone, now).split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+  return date.toISOString().slice(0, 10);
+}
+
 // What a guest may do, from the two counts and the two limits (0 = no limit).
 export function decide({ device, network }, { limit, networkLimit }) {
   if (!limit) return { ok: true, left: null, limit: 0 };
@@ -39,7 +51,7 @@ export function decide({ device, network }, { limit, networkLimit }) {
   return { ok: left > 0, left, limit };
 }
 
-// The day's random salt for connection hashes (made on first use).
+// The week's random salt for connection hashes (made on first use).
 async function daySalt(env, day) {
   const fresh = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24))));
   await env.DB.prepare('INSERT OR IGNORE INTO guest_salts (day, salt) VALUES (?1, ?2)').bind(day, fresh).run();
@@ -55,9 +67,9 @@ export async function handleGuestPlays(req, env, url) {
   if (!body || !DEVICE_ID.test(String(body.d || ''))) return json(req, env, { error: 'bad_request' }, 400);
 
   const s = await getSettings(env);
-  const limits = { limit: s.guest_daily_limit, networkLimit: s.guest_network_daily_limit };
+  const limits = { limit: s.guest_weekly_limit, networkLimit: s.guest_network_weekly_limit };
   if (!limits.limit) return json(req, env, { ok: true, left: null, limit: 0 });
-  const day = localDay(req.cf && req.cf.timezone);
+  const day = localWeek(req.cf && req.cf.timezone);
   const dev = `d:${await sha256(`flg-guest-device|${body.d}`)}`;
   const net = `n:${await sha256(`flg-guest-net|${day}|${ip}|${await daySalt(env, day)}`)}`;
   const { results } = await env.DB.prepare('SELECT who, n FROM guest_plays WHERE day = ?1 AND who IN (?2, ?3)').bind(day, dev, net).all();

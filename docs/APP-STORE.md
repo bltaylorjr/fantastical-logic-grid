@@ -124,7 +124,7 @@ The main game, The Fantastical Logic Grid, turns every case into a brand new sto
 • Race other players or the computer, and challenge friends to beat your time
 • VoiceOver friendly, with dark and high-contrast colors and a Silent mode
 
-Free, with no ads. Guests can play a few new puzzles a day; a free account (email only) gives unlimited puzzles, syncs your saves and lets you race.
+Free, with no ads. Guests can play a few new puzzles a week; a free account (email only) gives unlimited puzzles, syncs your saves and lets you race.
 
 - **Category:** Games, sub-categories Puzzle and Board
 - **Support URL:** https://thelogicgrid.com/ (contact: support@thelogicgrid.com)
@@ -156,7 +156,7 @@ is no chat). Unrestricted web access: No. Gambling, contests: No. Expect **4+**
 > The Logic Grid is a set of logic puzzle games. All game content is bundled
 > in the app and works offline. No sign-in is needed to review: open The
 > Fantastical Logic Grid from the games list, pick a difficulty and a theme,
-> then Start (guests get a few new puzzles a day). A
+> then Start (guests get a few new puzzles a week). A
 > free account (email only) gives unlimited puzzles, syncs saves and races; it can be deleted in Menu > Account and
 > sync > Delete account. Screen names typed by players are approved by an admin
 > before anyone sees them, and players can report problems from Menu > Report a

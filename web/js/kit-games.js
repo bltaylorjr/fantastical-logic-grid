@@ -65,7 +65,7 @@ export async function open(card, host = {}) {
         celebrate: host.celebrate,
         setWorld: host.setWorld,
         config: config(g.id),
-        // Guests get a few new puzzles a day, all games together (guest-limit.js).
+        // Guests get a few new puzzles a week, all games together (guest-limit.js).
         allowNew: guestLimit.allowNew, started: guestLimit.started, guestNote: guestLimit.note,
       });
       mods[g.id] = ui;

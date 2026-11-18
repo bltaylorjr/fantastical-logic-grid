@@ -174,7 +174,7 @@ function confirmDialog({ title, text, yes, no, check }) {
   });
 }
 
-// Guests get a few new puzzles a day in every game (guest-limit.js).
+// Guests get a few new puzzles a week in every game (guest-limit.js).
 guestLimit.init({ signedIn, openAccount, confirm: confirmDialog, onChange: () => renderGuestNote() });
 function renderGuestNote() {
   const el = $('#guest-note');

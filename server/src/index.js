@@ -21,7 +21,7 @@
 //   GET /v1/quality                      average rating and best-rated daily puzzles (quality.js)
 //   POST /v1/translate                   the game's text in another language (translate.js)
 //   POST /v1/v                           anonymous daily visitor counts (visits.js)
-//   POST /v1/guest-play                  a guest's new puzzles today, counted per device and connection (guest-plays.js)
+//   POST /v1/guest-play                  a guest's new puzzles this week, counted per device and connection (guest-plays.js)
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
 //   GET /v1/links                        the newest posts for the link-in-bio page (marketing.js)
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
