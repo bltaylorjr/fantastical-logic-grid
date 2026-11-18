@@ -674,3 +674,7 @@ label.check { display: inline-flex; gap: 6px; align-items: center; }
 .warn-text { color: var(--warn); }
 .bad-text { color: var(--bad); }
 #kdp-rows tr[aria-current] { background: var(--panel); outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Player profile (Players > a player): heading row with its own Period. */
+.profile > .row { justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.profile h4 { margin: 18px 0 6px; }

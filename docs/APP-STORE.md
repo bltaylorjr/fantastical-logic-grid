@@ -141,7 +141,8 @@ These match `mobile/ios/LogicGrid/PrivacyInfo.xcprivacy`.
 - **Identifiers > User ID**: App Functionality. Linked. Not tracking.
 - **User Content > Gameplay Content**: App Functionality (synced saves). Linked. Not tracking.
 - **User Content > Other User Content**: App Functionality (ideas and problem reports). Linked. Not tracking.
-- **Usage Data > Product Interaction**: Analytics, App Functionality. Not linked. Not tracking. (Can be turned off in Settings > Learning.)
+- **Location > Coarse Location**: Analytics. Linked to the user. Not tracking. (Only while signed in: city, region and country of the connection, kept 180 days.)
+- **Usage Data > Product Interaction**: Analytics, App Functionality. Linked to the user. Not tracking. (Anonymous play summaries are not linked and can be turned off in Settings > Learning; while signed in, the days played and roughly how long the game was open are kept with the account.)
 - **Diagnostics > Crash Data**: App Functionality. Not linked. Not tracking.
 
 ## Age rating answers

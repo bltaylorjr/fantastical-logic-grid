@@ -41,6 +41,7 @@
 //   GET  /admin/v1/kdp[/:id]           Amazon KDP listings and sales; POST .../, .../:id/delete, .../:id/sales[/:month/delete] (kdp.js)
 //   GET  /admin/v1/names?status=       screen names to moderate; POST /admin/v1/names/:uid/approve
 //   GET  /admin/v1/players?q=&filter=&sort=&dir=&page=&per=  every player, a page at a time; GET /admin/v1/players/:uid
+//   GET  /admin/v1/players/:uid/profile?days=   puzzles played, when, rough place, time played, stats (profiles.js)
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
 //   GET/POST /admin/v1/settings        feature switches and limits (settings.js)
 //   GET  /admin/v1/number-place        NINETIMESNINE games by level (number-place.js)
@@ -141,6 +142,7 @@ import { siteAccountRoutes } from './site-accounts.js';
 import { vaultRoutes } from './vault.js';
 import { SESSION_PREFIX, PasskeyError, signInOptions, checkSignIn, startSession, checkSession, endSessionStatement, forgetAdminStatements, registerOptions, register, listPasskeys, removePasskey } from './passkeys.js';
 import { accountDeletedStatement } from './sync.js';
+import { playerProfile, deletePlaceStatements } from './profiles.js';
 import { PLAYER_ROWS, inactiveOverview, claimWarnings, finishWarnings } from './inactive-accounts.js';
 
 const DAY = 24 * 3600_000;
@@ -157,7 +159,7 @@ const MAX_BODY = 8_000;
 const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
-const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'account_logins', 'account_days', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
+const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'account_logins', 'account_days', 'account_places', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
   'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'vault_items', 'vault_devices', 'quality_puzzles', 'books', 'book_puzzles', 'book_templates', 'studio_books', 'studio_book_parts', 'inactive_warnings', 'kdp_listings', 'kdp_sales'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
@@ -749,6 +751,8 @@ const ROUTES = [
     const r = await finishWarnings(env, body, now);
     return { body: r, detail: r };
   }],
+  // The player's profile: what they play, when, from roughly where, for how long (profiles.js).
+  ['GET', /^players\/([\w-]{1,128})\/profile$/, 'moderator', 'players.profile', async ({ env, url, params: [uid], now }) => ({ body: await playerProfile(env, uid, daysParam(url, 180), now), target: uid })],
   ['GET', /^players\/([\w-]{1,128})$/, 'moderator', 'players.view', async ({ env, params: [uid], now }) => ({ body: await playerDetail(env, uid, now), target: uid })],
   // Every account without a screen name gets a suggested one now, instead of waiting for the hourly run.
   ['POST', /^players\/name-all$/, 'moderator', 'players.name_all', async ({ env, now }) => {
@@ -783,6 +787,7 @@ const ROUTES = [
       env.DB.prepare('DELETE FROM sync_records WHERE user_id = ?1').bind(uid),
       env.DB.prepare('DELETE FROM sync_users WHERE user_id = ?1').bind(uid),
       env.DB.prepare('DELETE FROM account_logins WHERE user_id = ?1').bind(uid),
+      ...deletePlaceStatements(env, uid),
       ...deleteCompeteStatements(env, uid),
       ...deleteMessageStatements(env, uid),
       ...(await deleteReplyStatements(env, uid)),

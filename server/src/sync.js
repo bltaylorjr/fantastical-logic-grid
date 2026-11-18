@@ -18,6 +18,7 @@ import { deleteDailyEmailStatement } from './daily-email.js';
 import { deletePrintPackStatements } from './print-packs.js';
 import { deletePuzzleMailStatement } from './puzzle-mail.js';
 import { deleteBadgeStatements } from './special-badges.js';
+import { placeStatement, deletePlaceStatements } from './profiles.js';
 
 // Daily account totals for the admin dashboard (migrations/2180_account_days.sql).
 // They survive the account's own rows being deleted, so a player who joins and
@@ -39,7 +40,9 @@ export function accountDeletedStatement(env, uid, now = Date.now()) {
 // synced. The first sign-in counts the account as made for the day. A deleted
 // account (whose token can still work for up to an hour) is not noted again.
 const SIGN_IN_EVERY = 10 * 60_000;
-export async function recordSignIn(env, uid, now = Date.now()) {
+// With the request, it also notes the day's rough place and device for the
+// player's admin profile (profiles.js).
+export async function recordSignIn(env, uid, now = Date.now(), req = null) {
   const db = env.DB;
   const fresh = `NOT EXISTS (SELECT 1 FROM account_logins WHERE user_id = ?1) AND NOT EXISTS (SELECT 1 FROM sync_users WHERE user_id = ?1)
     AND NOT EXISTS (SELECT 1 FROM players WHERE user_id = ?1) AND NOT EXISTS (SELECT 1 FROM sync_deleted_users WHERE user_id = ?1)`;
@@ -49,6 +52,7 @@ export async function recordSignIn(env, uid, now = Date.now()) {
     db.prepare(`INSERT INTO account_logins (user_id, first_at, last_at, counted) SELECT ?1, ?2, ?2, ${fresh}
       WHERE NOT EXISTS (SELECT 1 FROM sync_deleted_users WHERE user_id = ?1)
       ON CONFLICT (user_id) DO UPDATE SET last_at = excluded.last_at WHERE account_logins.last_at < excluded.last_at - ?3`).bind(uid, now, SIGN_IN_EVERY),
+    ...(req ? [placeStatement(env, uid, req, now)] : []),
   ]);
 }
 
@@ -195,6 +199,7 @@ export async function deleteAccountStatements(env, uid, now = Date.now()) {
     env.DB.prepare('UPDATE licenses SET user_id = NULL, email = NULL WHERE user_id = ?1').bind(uid),
     env.DB.prepare('DELETE FROM inactive_warnings WHERE user_id = ?1').bind(uid),
     env.DB.prepare('DELETE FROM account_logins WHERE user_id = ?1').bind(uid),
+    ...deletePlaceStatements(env, uid),
     accountDeletedStatement(env, uid, now),
     env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(uid, now),
   ];

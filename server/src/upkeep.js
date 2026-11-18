@@ -34,6 +34,7 @@ import { upkeepStatements as fileUpkeep } from './report-files.js';
 import { upkeepStatements as qualityUpkeep } from './quality-puzzles.js';
 import { getSettings } from './settings.js';
 import { ARCHIVED_UPKEEP_JOBS } from './archive.js';
+import { PLACE_KEEP_DAYS } from './profiles.js';
 
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -71,6 +72,7 @@ export async function runUpkeep(env, now = Date.now()) {
     guest_salts: db.prepare('DELETE FROM guest_salts WHERE day < ?1').bind(isoDay(now - 3 * DAY)),
     visit_stats: db.prepare('DELETE FROM visit_stats WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
     account_days: db.prepare('DELETE FROM account_days WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
+    account_places: db.prepare('DELETE FROM account_places WHERE day < ?1').bind(isoDay(now - PLACE_KEEP_DAYS * DAY)),
     daily_results: db.prepare('DELETE FROM daily_results WHERE day < ?1').bind(isoDay(now - 120 * DAY)),
     print_packs: db.prepare('DELETE FROM print_packs WHERE at < ?1').bind(now - 400 * DAY),
     print_pack_stories: db.prepare('DELETE FROM print_pack_stories WHERE at < ?1').bind(now - 400 * DAY),
