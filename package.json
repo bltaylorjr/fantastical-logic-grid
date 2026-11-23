@@ -24,9 +24,9 @@
   "devDependencies": {
     "@fontsource/atkinson-hyperlegible": "^5.2.5",
     "@fontsource/cinzel": "^5.3.0",
-    "@tauri-apps/cli": "^2.12.4",
+    "@tauri-apps/cli": "^2.12.6",
     "esbuild": "^0.28.2",
-    "javascript-obfuscator": "^5.10.0"
+    "javascript-obfuscator": "^5.10.1"
   },
   "overrides": {
     "zod": "^4.6.7"
